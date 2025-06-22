@@ -120,3 +120,16 @@ body{
 .safe{
     color: green;
 }
+
+/* Color coding for new sentiment labels */
+.positive{
+    color: green;
+}
+
+.negative{
+    color: red;
+}
+
+.neutral{
+    color: goldenrod;
+}

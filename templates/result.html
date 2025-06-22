@@ -21,15 +21,17 @@
     	</div>
 
 		<!-- Result -->
-		<div class="results">
-			{% if prediction==1 %}
-				<h1>Prediction: <span class='safe'>Great! This is a POSITIVE Review.</span></h1>
-				<img class="gif" src="{{ url_for('static', filename='positive-review.webp') }}" alt="Positive Review">
-			{% elif prediction==0 %}
-				<h1>Prediction: <span class='danger'>Oops! This is a NEGATIVE Review.</span></h1>
-				<img class="gif" src="{{ url_for('static', filename='negative-review.webp') }}" alt="Negative Review">
-			{% endif %}
-		</div>
+                <div class="results">
+                        {% if prediction == 'positive' %}
+                                <h1>Sentiment: <span class='positive' title="Model label: {{ raw_label }} | Score: {{ score }}">Positive</span></h1>
+                                <img class="gif" src="{{ url_for('static', filename='positive-review.webp') }}" alt="Positive Review">
+                        {% elif prediction == 'negative' %}
+                                <h1>Sentiment: <span class='negative' title="Model label: {{ raw_label }} | Score: {{ score }}">Negative</span></h1>
+                                <img class="gif" src="{{ url_for('static', filename='negative-review.webp') }}" alt="Negative Review">
+                        {% else %}
+                                <h1>Sentiment: <span class='neutral' title="Model label: {{ raw_label }} | Score: {{ score }}">Neutral</span></h1>
+                        {% endif %}
+                </div>
 
 		<!-- Footer -->
 		<div class='footer'>
