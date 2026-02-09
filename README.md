@@ -1,48 +1,186 @@
-# Restaurant Review's Sentiment Analysis - Deployment
-![Kaggle](https://img.shields.io/badge/Dataset-Kaggle-blue.svg) ![Python 3.6+](https://img.shields.io/badge/Python-3.6+-brightgreen.svg) ![NLTK](https://img.shields.io/badge/Library-NLTK-orange.svg)
+# Restaurant Review Sentiment Analyser
 
-• This repository consists of files required to deploy a ___Machine Learning Web App___ created with ___Flask___ on ___Heroku___ platform.
+![Python 3.11+](https://img.shields.io/badge/Python-3.11+-3776AB?logo=python&logoColor=white)
+![FastAPI](https://img.shields.io/badge/FastAPI-009688?logo=fastapi&logoColor=white)
+![React](https://img.shields.io/badge/React-18-61DAFB?logo=react&logoColor=black)
+![Docker](https://img.shields.io/badge/Docker-Ready-2496ED?logo=docker&logoColor=white)
+![Licence](https://img.shields.io/badge/Licence-MIT-green)
 
-• If you want to view the deployed model, click on the following link:<br />
-Deployed at: _https://restaurant-reviews-sentiment.herokuapp.com/_
+An **AI-powered web application** that analyses restaurant reviews and predicts whether the sentiment is **positive** or **negative**, complete with confidence scores and witty chef responses.
+
+![App Screenshot](readme_resources/restaurant-review-web-app.gif)
+
+---
+
+## Features
+
+| Feature | Description |
+|---|---|
+| **Sentiment Analysis** | Multinomial Naive Bayes classifier trained on 1 000 restaurant reviews |
+| **Confidence Score** | Probability-based confidence meter for every prediction |
+| **Voice Input** | Speak your review using the browser's Speech Recognition API |
+| **Modern UI** | Dark glassmorphism design with micro-animations (no Bootstrap) |
+| **FastAPI Backend** | High-performance async Python backend |
+| **Docker Ready** | Multi-stage Dockerfile for one-command deployment |
+| **Security** | Non-root Docker user, env-based config, input validation |
+
+---
+
+## Architecture
+
+```
+┌───────────────────────┐     POST /api/predict     ┌──────────────────────┐
+│   React Frontend      │ ◄──────────────────────► │   FastAPI Backend     │
+│   (Vite + JSX)        │        JSON               │   (Uvicorn)          │
+│                       │                           │                      │
+│  • Client Validation  │                           │  • TF-IDF Vectoriser │
+│  • Voice Input        │                           │  • MNB Classifier    │
+│  • Animated Results   │                           │  • Error Handling    │
+└───────────────────────┘                           └──────────────────────┘
+```
+
+---
 
 ## Model Information
 
-### Algorithms Used
-- **Natural Language Processing**: WordNet Lemmatizer for word normalization
-- **Feature Extraction**: TF-IDF Vectorizer (Term Frequency-Inverse Document Frequency)
-- **Classification Algorithm**: Multinomial Naive Bayes
-- **Model Evaluation**: Classification Report, Confusion Matrix, Accuracy Score
-
 ### Preprocessing Pipeline
-1. Text cleaning: Removal of special characters
-2. Lowercase conversion
-3. Tokenization
-4. Stop word removal
-5. Lemmatization (instead of stemming for better linguistic accuracy)
+1. **Text Cleaning** – Removal of special characters via regex
+2. **Lowercase Conversion** – Normalise case
+3. **Tokenisation** – Split into individual words
+4. **Stop-word Removal** – NLTK English stop-words
+5. **Lemmatisation** – `WordNetLemmatizer` (not Porter Stemmer) for superior linguistic accuracy
 
-### Model Performance
-- **Dataset**: Restaurant Reviews (1000 samples)
-- **Training Split**: 80% training, 20% testing
-- **Algorithm**: Multinomial Naive Bayes with alpha=0.2
-- **Features**: TF-IDF vectors without feature limit constraints
+### Feature Extraction
+- **TF-IDF Vectoriser** (Term Frequency–Inverse Document Frequency)
+- Vocabulary size selected automatically via F1-score analysis across candidates `[500, 1000, 1500, 2000, 2500, 3000, ALL]`
 
-### Technical Improvements Made
-- Upgraded from Porter Stemmer to WordNet Lemmatizer for better word normalization
-- Replaced CountVectorizer with TfidfVectorizer for better feature representation
-- Removed arbitrary max_features limit for optimal performance
-- Added comprehensive error handling
-- Implemented secure deployment configurations
-- Added model evaluation metrics
+### Classification
+- **Multinomial Naive Bayes** with α = 0.2
+- 80/20 train-test split, `random_state=0`
 
-• Please do ⭐ the repository, if it helped you in anyway.
+### Evaluation Metrics
+The training script prints a full evaluation report:
 
-• A glimpse of the web app:
+| Metric | Description |
+|---|---|
+| Classification Report | Per-class precision, recall, F1 |
+| Confusion Matrix | TP, TN, FP, FN |
+| Accuracy | Overall correctness |
+| F1-Score (weighted) | Harmonic mean accounting for class imbalance |
+| ROC-AUC | Area under the ROC curve |
 
-![GIF](readme_resources/restaurant-review-web-app.gif)
+---
 
-_**----- Important Note -----**_<br />
-• If you encounter this webapp as shown in the picture given below, it is occuring just because **free dynos for this particular month provided by Heroku have been completely used.** _You can access the webpage on 1st of the next month._<br />
-• Sorry for the inconvenience.
+## Quick Start
 
-![Heroku-Error](readme_resources/application-error-heroku.png)
+### Prerequisites
+- Python 3.11+
+- Node.js 18+
+- pip
+
+### 1. Clone & Install
+
+```bash
+git clone https://github.com/Ishwarpatra/Restaurant-Reviews-Sentiment-Analysis-Deployment.git
+cd Restaurant-Reviews-Sentiment-Analysis-Deployment
+pip install -r requirements.txt
+```
+
+### 2. Train the Model (optional – pre-trained `.pkl` files included)
+
+```bash
+python "Restaurant Reviews Sentiment Analyser - Deployment.py"
+```
+
+This will:
+- Run vocabulary size analysis
+- Train the final model with optimal features
+- Print full evaluation metrics
+- Save `cv-transform.pkl` and `restaurant-sentiment-mnb-model.pkl`
+
+### 3. Build the Frontend
+
+```bash
+cd client
+npm install
+npm run build
+cd ..
+```
+
+### 4. Run the Server
+
+```bash
+python main.py
+```
+
+Open **http://localhost:5000** in your browser.
+
+### Environment Variables
+
+| Variable | Default | Description |
+|---|---|---|
+| `DEBUG` | `false` | Enable debug mode & CORS wildcard |
+| `PORT` | `5000` | Server port |
+| `ALLOWED_ORIGINS` | `http://localhost:5173` | Comma-separated CORS origins |
+
+---
+
+## Docker Deployment
+
+```bash
+# Build the image
+docker build -t restaurant-sentiment .
+
+# Run the container
+docker run -p 5000:5000 -e DEBUG=false restaurant-sentiment
+```
+
+Works on **any cloud provider** — AWS ECS, Azure Container Instances, GCP Cloud Run, DigitalOcean, etc.
+
+---
+
+## Project Structure
+
+```
+├── main.py                        # FastAPI backend (API + static file serving)
+├── Restaurant Reviews Sentiment
+│   Analyser - Deployment.py       # Training & evaluation script
+├── Restaurant_Reviews.tsv         # Dataset (1 000 reviews)
+├── restaurant-sentiment-mnb-model.pkl  # Trained classifier
+├── cv-transform.pkl               # Fitted TF-IDF vectoriser
+├── requirements.txt               # Python dependencies
+├── Dockerfile                     # Multi-stage Docker build
+├── Procfile                       # Heroku / PaaS entrypoint
+├── client/                        # React frontend (Vite)
+│   ├── index.html                 # HTML shell with OG tags & favicon
+│   ├── package.json
+│   ├── vite.config.js
+│   └── src/
+│       ├── main.jsx
+│       ├── App.jsx                # Main app component
+│       ├── index.css              # Design system
+│       └── components/
+│           ├── Navbar.jsx
+│           └── Footer.jsx
+└── README.md
+```
+
+---
+
+## Security Notes
+
+- **No `debug=True` in production** – Debug mode is toggled via the `DEBUG` env var (defaults to `false`)
+- **CORS** – Only allows configured origins in production; wildcard only in debug mode
+- **Input Validation** – Server-side via Pydantic validators + client-side JS validation
+- **Docker** – Runs as non-root `appuser`
+- **Dependencies** – Pinned to latest stable versions
+
+---
+
+## Licence
+
+MIT © Ishwarpatra
+
+---
+
+**Star this repo** if it helped you!
