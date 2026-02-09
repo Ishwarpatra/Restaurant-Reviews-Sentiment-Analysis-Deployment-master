@@ -1,13 +1,39 @@
 # Restaurant Review's Sentiment Analysis - Deployment
-![Kaggle](https://img.shields.io/badge/Dataset-Kaggle-blue.svg) ![Python 3.6](https://img.shields.io/badge/Python-3.6-brightgreen.svg) ![NLTK](https://img.shields.io/badge/Library-NLTK-orange.svg)
+![Kaggle](https://img.shields.io/badge/Dataset-Kaggle-blue.svg) ![Python 3.6+](https://img.shields.io/badge/Python-3.6+-brightgreen.svg) ![NLTK](https://img.shields.io/badge/Library-NLTK-orange.svg)
 
 • This repository consists of files required to deploy a ___Machine Learning Web App___ created with ___Flask___ on ___Heroku___ platform.
 
 • If you want to view the deployed model, click on the following link:<br />
 Deployed at: _https://restaurant-reviews-sentiment.herokuapp.com/_
 
-• If you are searching for __Code__, __Algorithms used__ and __Accuracy__ of the model.. you won't find it here. Click the link mentioned below for the same:<br />
-Link: _https://github.com/anujvyas/Natural-Language-Processing-Projects/tree/master/Sentiment%20Analysis%20-%20Restaurant%20Reviews_
+## Model Information
+
+### Algorithms Used
+- **Natural Language Processing**: WordNet Lemmatizer for word normalization
+- **Feature Extraction**: TF-IDF Vectorizer (Term Frequency-Inverse Document Frequency)
+- **Classification Algorithm**: Multinomial Naive Bayes
+- **Model Evaluation**: Classification Report, Confusion Matrix, Accuracy Score
+
+### Preprocessing Pipeline
+1. Text cleaning: Removal of special characters
+2. Lowercase conversion
+3. Tokenization
+4. Stop word removal
+5. Lemmatization (instead of stemming for better linguistic accuracy)
+
+### Model Performance
+- **Dataset**: Restaurant Reviews (1000 samples)
+- **Training Split**: 80% training, 20% testing
+- **Algorithm**: Multinomial Naive Bayes with alpha=0.2
+- **Features**: TF-IDF vectors without feature limit constraints
+
+### Technical Improvements Made
+- Upgraded from Porter Stemmer to WordNet Lemmatizer for better word normalization
+- Replaced CountVectorizer with TfidfVectorizer for better feature representation
+- Removed arbitrary max_features limit for optimal performance
+- Added comprehensive error handling
+- Implemented secure deployment configurations
+- Added model evaluation metrics
 
 • Please do ⭐ the repository, if it helped you in anyway.
 
