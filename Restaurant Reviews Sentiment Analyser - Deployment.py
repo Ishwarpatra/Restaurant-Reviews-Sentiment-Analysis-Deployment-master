@@ -3,14 +3,18 @@ import pandas as pd
 import pickle
 
 # Loading the dataset
-df = pd.read_csv('Restaurant_Reviews.tsv', delimiter='\t', quoting=3)
+import os
+script_dir = os.path.dirname(os.path.abspath(__file__))
+dataset_path = os.path.join(script_dir, 'Restaurant_Reviews.tsv')
+df = pd.read_csv(dataset_path, delimiter='\t', quoting=3)
 
 # Importing essential libraries for performing Natural Language Processing on 'Restaurant_Reviews.tsv' dataset
 import nltk
 import re
 nltk.download('stopwords')
+nltk.download('wordnet')
 from nltk.corpus import stopwords
-from nltk.stem.porter import PorterStemmer
+from nltk.stem import WordNetLemmatizer
 
 # Cleaning the reviews
 corpus = []
@@ -28,24 +32,24 @@ for i in range(0,1000):
   # Removing the stop words
   review_words = [word for word in review_words if not word in set(stopwords.words('english'))]
 
-  # Stemming the words
-  ps = PorterStemmer()
-  review = [ps.stem(word) for word in review_words]
+  # Lemmatizing the words
+  lemmatizer = WordNetLemmatizer()
+  review = [lemmatizer.lemmatize(word) for word in review_words]
 
-  # Joining the stemmed words
+  # Joining the lemmatized words
   review = ' '.join(review)
 
   # Creating a corpus
   corpus.append(review)
-  
-# Creating the Bag of Words model
-from sklearn.feature_extraction.text import CountVectorizer
-cv = CountVectorizer(max_features=1500)
-X = cv.fit_transform(corpus).toarray()
+
+# Creating the TF-IDF model (replacing Bag of Words)
+from sklearn.feature_extraction.text import TfidfVectorizer
+tfidf = TfidfVectorizer()  # Removed max_features constraint
+X = tfidf.fit_transform(corpus).toarray()
 y = df.iloc[:, 1].values
 
-# Creating a pickle file for the CountVectorizer
-pickle.dump(cv, open('cv-transform.pkl', 'wb'))
+# Creating a pickle file for the TfidfVectorizer
+pickle.dump(tfidf, open('cv-transform.pkl', 'wb'))
 
 
 # Model Building
@@ -61,3 +65,9 @@ classifier.fit(X_train, y_train)
 # Creating a pickle file for the Multinomial Naive Bayes model
 filename = 'restaurant-sentiment-mnb-model.pkl'
 pickle.dump(classifier, open(filename, 'wb'))
+
+# Model Evaluation Metrics
+from sklearn.metrics import classification_report, confusion_matrix, accuracy_score
+y_pred = classifier.predict(X_test)
+print(classification_report(y_test, y_pred))
+print(f"Accuracy: {accuracy_score(y_test, y_pred)}")
