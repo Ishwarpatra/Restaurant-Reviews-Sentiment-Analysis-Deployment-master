@@ -27,10 +27,41 @@ def predict():
             
             data = [message]
             vect = cv.transform(data).toarray()
-            my_prediction = classifier.predict(vect)
-            return render_template('result.html', prediction=my_prediction)
+            
+            # 1. Get Prediction AND Probability
+            prediction = classifier.predict(vect)[0]
+            proba = classifier.predict_proba(vect)[0] # Returns [prob_neg, prob_pos]
+            
+            # Calculate confidence score (0 to 100)
+            confidence = round(max(proba) * 100, 2)
+            
+            # 2. "The Witty Chef" Logic
+            custom_msg = ""
+            lower_msg = message.lower()
+            
+            if prediction == 0: # Negative Review
+                if any(x in lower_msg for x in ["wait", "slow", "time", "hour"]):
+                    custom_msg = "Yikes! 🐌 Our snails move faster than that service. Message received!"
+                elif any(x in lower_msg for x in ["taste", "flavor", "salty", "bland", "cold"]):
+                    custom_msg = "Did the chef fall asleep? 🧂 We're sending this feedback to the kitchen!"
+                elif "money" in lower_msg or "expensive" in lower_msg:
+                    custom_msg = "Ouch, that hurts the wallet and the feelings. 💸"
+                else:
+                    custom_msg = "We messed up. Thanks for the honest reality check."
+            else: # Positive Review
+                if any(x in lower_msg for x in ["delicious", "yummy", "tasty", "great food"]):
+                    custom_msg = "Chef's Kiss! 👩‍🍳💋 We're framing this review!"
+                elif any(x in lower_msg for x in ["staff", "service", "waiter", "waitress"]):
+                    custom_msg = "Give that staff member a raise! 🏆"
+                elif "atmosphere" in lower_msg or "place" in lower_msg:
+                    custom_msg = "Vibes: Immaculate. ✨"
+                else:
+                    custom_msg = "You just made our day! 😊"
+
+            return render_template('result.html', prediction=prediction, confidence=confidence, custom_msg=custom_msg)
+            
         except Exception as e:
-            return render_template('result.html', prediction=None, error=f"An error occurred during prediction: {str(e)}")
+            return render_template('result.html', prediction=None, error=f"An error occurred: {str(e)}")
 
 if __name__ == '__main__':
     import os
