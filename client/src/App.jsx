@@ -5,7 +5,9 @@ import Footer from './components/Footer';
 import './index.css';
 
 // Use relative URL so it works in both dev (via proxy) and production
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+// In production (Render), frontend & backend share the same origin → use relative URL.
+// For local dev, create client/.env with: VITE_API_URL=http://localhost:5000
+const API_URL = import.meta.env.VITE_API_URL || '';
 
 function App() {
   const [message, setMessage] = useState('');
