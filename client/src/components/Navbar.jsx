@@ -2,12 +2,14 @@ import React from 'react';
 
 const Navbar = () => {
   return (
-    <nav className="navbar navbar-expand-lg navbar-dark bg-primary">
-      <div className="container">
-        <span className="navbar-brand mb-0 h1">
-          <i className="fas fa-utensils me-2"></i>Restaurant Review Sentiment Analyser
+    <nav className="app-navbar">
+      <a href="/" className="nav-brand">
+        <span className="nav-brand-icon">
+          <i className="fas fa-utensils"></i>
         </span>
-      </div>
+        Sentiment Analyser
+        <span className="nav-badge">AI Powered</span>
+      </a>
     </nav>
   );
 };
