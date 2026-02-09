@@ -1,7 +1,7 @@
 from fastapi import FastAPI, Request, Form
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import pickle
@@ -19,12 +19,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# 1. Mount Static Files (CSS, Images)
-# This keeps your design working
-app.mount("/static", StaticFiles(directory="static"), name="static")
+# 1. Mount the React build's 'assets' folder
+# Note: We check if the directory exists to avoid crashing in dev mode
+if os.path.exists("client/dist/assets"):
+    app.mount("/assets", StaticFiles(directory="client/dist/assets"), name="assets")
 
-# 2. Setup Templates (Jinja2)
-# This keeps your HTML working
+# 2. Setup Templates (Jinja2) - kept for fallback
 templates = Jinja2Templates(directory="templates")
 
 # 3. Load Model & Vectorizer (Same logic as before)
@@ -39,10 +39,10 @@ cv = pickle.load(open(vectorizer_path,'rb'))
 class ReviewRequest(BaseModel):
     message: str
 
-# 4. Routes
-@app.get("/", response_class=HTMLResponse)
-async def home(request: Request):
-    return templates.TemplateResponse("index.html", {"request": request})
+# 4. Serve the React Entry Point for the Root
+@app.get("/")
+async def read_index():
+    return FileResponse('client/dist/index.html')
 
 @app.post("/predict", response_class=HTMLResponse)
 async def predict(request: Request, message: str = Form(...)):
