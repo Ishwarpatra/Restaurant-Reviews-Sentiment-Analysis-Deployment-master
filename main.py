@@ -1,146 +1,204 @@
+import os
+import pickle
+import logging
+
 from fastapi import FastAPI, Request, Form
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, FileResponse
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
-import pickle
-import os
-import uvicorn
+from pydantic import BaseModel, field_validator
 
-app = FastAPI()
+# ---------------------------------------------------------------------------
+# Configuration via environment variables
+# ---------------------------------------------------------------------------
+DEBUG_MODE = os.environ.get("DEBUG", "false").lower() == "true"
+ALLOWED_ORIGINS = os.environ.get(
+    "ALLOWED_ORIGINS", "http://localhost:5173"
+).split(",")
 
-# Enable CORS so your React app (port 5173) can talk to FastAPI (port 5000)
+# ---------------------------------------------------------------------------
+# Logging
+# ---------------------------------------------------------------------------
+logging.basicConfig(
+    level=logging.DEBUG if DEBUG_MODE else logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(message)s",
+)
+logger = logging.getLogger(__name__)
+
+# ---------------------------------------------------------------------------
+# App initialisation
+# ---------------------------------------------------------------------------
+app = FastAPI(
+    title="Restaurant Review Sentiment Analyser",
+    description="ML-powered sentiment analysis for restaurant reviews",
+    version="2.0.0",
+    debug=DEBUG_MODE,
+)
+
+# CORS – use explicit origins; only fall back to wildcard when DEBUG is on
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], # In production, replace with your React app URL
+    allow_origins=["*"] if DEBUG_MODE else ALLOWED_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# 1. Mount the React build's 'assets' folder
-# Note: We check if the directory exists to avoid crashing in dev mode
-if os.path.exists("client/dist/assets"):
-    app.mount("/assets", StaticFiles(directory="client/dist/assets"), name="assets")
+# ---------------------------------------------------------------------------
+# Static files & templates
+# ---------------------------------------------------------------------------
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 
-# 2. Setup Templates (Jinja2) - kept for fallback
-templates = Jinja2Templates(directory="templates")
+client_assets_dir = os.path.join(SCRIPT_DIR, "client", "dist", "assets")
+if os.path.exists(client_assets_dir):
+    app.mount("/assets", StaticFiles(directory=client_assets_dir), name="assets")
 
-# 3. Load Model & Vectorizer (Same logic as before)
-script_dir = os.path.dirname(os.path.abspath(__file__))
-model_path = os.path.join(script_dir, 'restaurant-sentiment-mnb-model.pkl')
-vectorizer_path = os.path.join(script_dir, 'cv-transform.pkl')
+templates_dir = os.path.join(SCRIPT_DIR, "templates")
+if os.path.isdir(templates_dir):
+    templates = Jinja2Templates(directory=templates_dir)
+else:
+    templates = None
+    logger.warning("No 'templates' directory found – Jinja2 templates disabled.")
 
-classifier = pickle.load(open(model_path, 'rb'))
-cv = pickle.load(open(vectorizer_path,'rb'))
+# ---------------------------------------------------------------------------
+# Load model & vectoriser
+# ---------------------------------------------------------------------------
+model_path = os.path.join(SCRIPT_DIR, "restaurant-sentiment-mnb-model.pkl")
+vectorizer_path = os.path.join(SCRIPT_DIR, "cv-transform.pkl")
 
-# NEW: Create a data model for the request
+try:
+    classifier = pickle.load(open(model_path, "rb"))
+    cv = pickle.load(open(vectorizer_path, "rb"))
+    logger.info("Model and vectoriser loaded successfully.")
+except FileNotFoundError as exc:
+    logger.error("Model files not found: %s", exc)
+    raise SystemExit(
+        "FATAL: Model pickle files are missing. Run the training script first."
+    ) from exc
+
+# ---------------------------------------------------------------------------
+# Request / response models
+# ---------------------------------------------------------------------------
 class ReviewRequest(BaseModel):
     message: str
 
-# 4. Serve the React Entry Point for the Root
+    @field_validator("message")
+    @classmethod
+    def message_must_not_be_empty(cls, v: str) -> str:
+        if not v or not v.strip():
+            raise ValueError("Review text must not be empty.")
+        return v.strip()
+
+
+# ---------------------------------------------------------------------------
+# Helper: witty chef response
+# ---------------------------------------------------------------------------
+def get_witty_response(prediction: int, text: str) -> str:
+    lower = text.lower()
+    if prediction == 0:
+        if any(w in lower for w in ["wait", "slow", "time", "hour"]):
+            return "Yikes! Our snails move faster than that service. Message received!"
+        if any(w in lower for w in ["taste", "flavor", "salty", "bland", "cold"]):
+            return "Did the chef fall asleep? We're sending this feedback to the kitchen!"
+        if "money" in lower or "expensive" in lower:
+            return "Ouch, that hurts the wallet and the feelings."
+        return "We messed up. Thanks for the honest reality check."
+    else:
+        if any(w in lower for w in ["delicious", "yummy", "tasty", "great food"]):
+            return "Chef's Kiss! We're framing this review!"
+        if any(w in lower for w in ["staff", "service", "waiter", "waitress"]):
+            return "Give that staff member a raise!"
+        if "atmosphere" in lower or "place" in lower:
+            return "Vibes: Immaculate."
+        return "You just made our day!"
+
+
+# ---------------------------------------------------------------------------
+# Routes
+# ---------------------------------------------------------------------------
 @app.get("/")
 async def read_index():
-    return FileResponse('client/dist/index.html')
+    index_path = os.path.join(SCRIPT_DIR, "client", "dist", "index.html")
+    if os.path.exists(index_path):
+        return FileResponse(index_path)
+    return {"detail": "Frontend not built. Run `npm run build` in /client first."}
+
 
 @app.post("/predict", response_class=HTMLResponse)
 async def predict(request: Request, message: str = Form(...)):
+    """Legacy form-based predict route (Jinja2 template)."""
+    if templates is None:
+        return HTMLResponse("<h1>Templates directory missing</h1>", status_code=500)
     try:
         if not message.strip():
-            return templates.TemplateResponse("result.html", {
-                "request": request, 
-                "prediction": None, 
-                "error": "Please enter a valid review."
-            })
-        
-        # Prediction Logic (Identical to Flask)
-        data = [message]
-        vect = cv.transform(data).toarray()
+            return templates.TemplateResponse(
+                "result.html",
+                {"request": request, "prediction": None, "error": "Please enter a valid review."},
+            )
+
+        vect = cv.transform([message]).toarray()
         prediction = classifier.predict(vect)[0]
         proba = classifier.predict_proba(vect)[0]
         confidence = round(max(proba) * 100, 2)
+        custom_msg = get_witty_response(prediction, message)
 
-        # "The Witty Chef" Logic (Identical copy-paste)
-        custom_msg = ""
-        lower_msg = message.lower()
-        
-        if prediction == 0: # Negative Review
-            if any(x in lower_msg for x in ["wait", "slow", "time", "hour"]):
-                custom_msg = "Yikes! 🐌 Our snails move faster than that service. Message received!"
-            elif any(x in lower_msg for x in ["taste", "flavor", "salty", "bland", "cold"]):
-                custom_msg = "Did the chef fall asleep? 🧂 We're sending this feedback to the kitchen!"
-            elif "money" in lower_msg or "expensive" in lower_msg:
-                custom_msg = "Ouch, that hurts the wallet and the feelings. 💸"
-            else:
-                custom_msg = "We messed up. Thanks for the honest reality check."
-        else: # Positive Review
-            if any(x in lower_msg for x in ["delicious", "yummy", "tasty", "great food"]):
-                custom_msg = "Chef's Kiss! 👩‍🍳💋 We're framing this review!"
-            elif any(x in lower_msg for x in ["staff", "service", "waiter", "waitress"]):
-                custom_msg = "Give that staff member a raise! 🏆"
-            elif "atmosphere" in lower_msg or "place" in lower_msg:
-                custom_msg = "Vibes: Immaculate. ✨"
-            else:
-                custom_msg = "You just made our day! 😊"
+        return templates.TemplateResponse(
+            "result.html",
+            {
+                "request": request,
+                "prediction": prediction,
+                "confidence": confidence,
+                "custom_msg": custom_msg,
+            },
+        )
+    except Exception as exc:
+        logger.exception("Error during prediction")
+        return templates.TemplateResponse(
+            "result.html",
+            {"request": request, "prediction": None, "error": f"An error occurred: {exc}"},
+        )
 
-        return templates.TemplateResponse("result.html", {
-            "request": request,
-            "prediction": prediction,
-            "confidence": confidence,
-            "custom_msg": custom_msg
-        })
 
-    except Exception as e:
-        return templates.TemplateResponse("result.html", {
-            "request": request, 
-            "prediction": None, 
-            "error": f"An error occurred: {str(e)}"
-        })
-
-# NEW: Create a data API endpoint for React
 @app.post("/api/predict")
 async def predict_api(request: ReviewRequest):
-    message = request.message
-    
-    # 1. Prediction Logic (Same as before)
-    data = [message]
-    vect = cv.transform(data).toarray()
-    prediction = int(classifier.predict(vect)[0]) # Convert to standard int
-    proba = classifier.predict_proba(vect)[0]
-    confidence = round(max(proba) * 100, 2)
+    """JSON API endpoint consumed by the React frontend."""
+    try:
+        message = request.message
+        vect = cv.transform([message]).toarray()
+        prediction = int(classifier.predict(vect)[0])
+        proba = classifier.predict_proba(vect)[0]
+        confidence = round(max(proba) * 100, 2)
+        custom_msg = get_witty_response(prediction, message)
 
-    # 2. Witty Chef Logic (Same as before)
-    custom_msg = ""
-    lower_msg = message.lower()
-    if prediction == 0: # Negative Review
-        if any(x in lower_msg for x in ["wait", "slow", "time", "hour"]):
-            custom_msg = "Yikes! 🐌 Our snails move faster than that service. Message received!"
-        elif any(x in lower_msg for x in ["taste", "flavor", "salty", "bland", "cold"]):
-            custom_msg = "Did the chef fall asleep? 🧂 We're sending this feedback to the kitchen!"
-        elif "money" in lower_msg or "expensive" in lower_msg:
-            custom_msg = "Ouch, that hurts the wallet and the feelings. 💸"
-        else:
-            custom_msg = "We messed up. Thanks for the honest reality check."
-    else: # Positive Review
-        if any(x in lower_msg for x in ["delicious", "yummy", "tasty", "great food"]):
-            custom_msg = "Chef's Kiss! 👩‍🍳💋 We're framing this review!"
-        elif any(x in lower_msg for x in ["staff", "service", "waiter", "waitress"]):
-            custom_msg = "Give that staff member a raise! 🏆"
-        elif "atmosphere" in lower_msg or "place" in lower_msg:
-            custom_msg = "Vibes: Immaculate. ✨"
-        else:
-            custom_msg = "You just made our day! 😊"
+        return {
+            "prediction": prediction,
+            "confidence": confidence,
+            "custom_msg": custom_msg,
+        }
+    except Exception as exc:
+        logger.exception("Error in /api/predict")
+        return {"error": str(exc), "prediction": None, "confidence": 0}
 
-    # Return JSON instead of HTML
-    return {
-        "prediction": prediction,
-        "confidence": confidence,
-        "custom_msg": custom_msg
-    }
 
+# ---------------------------------------------------------------------------
+# Health check
+# ---------------------------------------------------------------------------
+@app.get("/health")
+async def health():
+    return {"status": "healthy", "debug": DEBUG_MODE}
+
+
+# ---------------------------------------------------------------------------
+# Entrypoint
+# ---------------------------------------------------------------------------
 if __name__ == "__main__":
-    import os
+    import uvicorn
+
     port = int(os.environ.get("PORT", 5000))
-    # Run with host 0.0.0.0 to be accessible externally
-    uvicorn.run(app, host="0.0.0.0", port=port)
+    uvicorn.run(
+        "main:app",
+        host="0.0.0.0",
+        port=port,
+        reload=DEBUG_MODE,
+    )
