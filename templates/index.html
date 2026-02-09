@@ -32,9 +32,13 @@
                         
                         <!-- Text Area -->
                         <form action="{{ url_for('predict') }}" method="POST">
-                            <div class="mb-3">
+                            <div class="mb-3 position-relative">
                                 <label for="message" class="form-label fw-bold">Enter Your Review:</label>
-                                <textarea class="form-control" id="message" name="message" rows="8" placeholder="Enter Your Review Here..." required></textarea>
+                                <textarea class="form-control" id="message" name="message" rows="8" placeholder="Type here or click the mic to speak..." required></textarea>
+                                
+                                <button type="button" id="micBtn" class="btn btn-secondary position-absolute bottom-0 end-0 m-3 rounded-circle" title="Speak Review">
+                                    <i class="fas fa-microphone"></i>
+                                </button>
                             </div>
                             <button type="submit" class="btn btn-primary w-100" onclick="return validateForm()">
                                 <i class="fas fa-search me-2"></i>Predict Sentiment
@@ -47,6 +51,44 @@
     </div>
 
     <script>
+        // Voice Recognition Logic
+        const micBtn = document.getElementById('micBtn');
+        const messageBox = document.getElementById('message');
+
+        if ('webkitSpeechRecognition' in window) {
+            const recognition = new webkitSpeechRecognition();
+            recognition.continuous = false;
+            recognition.lang = 'en-US';
+
+            micBtn.addEventListener('click', () => {
+                if (micBtn.classList.contains('recording')) {
+                    recognition.stop();
+                } else {
+                    recognition.start();
+                }
+            });
+
+            recognition.onstart = () => {
+                micBtn.classList.add('recording');
+                micBtn.classList.remove('btn-secondary');
+                micBtn.classList.add('btn-danger'); // Turn red when recording
+            };
+
+            recognition.onend = () => {
+                micBtn.classList.remove('recording');
+                micBtn.classList.add('btn-secondary');
+                micBtn.classList.remove('btn-danger');
+            };
+
+            recognition.onresult = (event) => {
+                const transcript = event.results[0][0].transcript;
+                messageBox.value += transcript + " ";
+            };
+        } else {
+            micBtn.style.display = 'none'; // Hide if not supported
+            console.log("Web Speech API not supported in this browser.");
+        }
+
         function validateForm() {
             const message = document.getElementById('message').value.trim();
             if (message === '') {
