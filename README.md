@@ -29,45 +29,28 @@ An **AI-powered web application** that analyses restaurant reviews and predicts 
 ## Architecture
 
 ```
-┌───────────────────────┐     POST /api/predict     ┌──────────────────────┐
-│   React Frontend      │ ◄──────────────────────► │   FastAPI Backend     │
-│   (Vite + JSX)        │        JSON               │   (Uvicorn)          │
-│                       │                           │                      │
-│  • Client Validation  │                           │  • TF-IDF Vectoriser │
-│  • Voice Input        │                           │  • MNB Classifier    │
-│  • Animated Results   │                           │  • Error Handling    │
-└───────────────────────┘                           └──────────────────────┘
++-------------------------------+   POST /api/predict   +-----------------------------+
+|   React Frontend              | <-------------------> |   FastAPI Backend            |
+|   (Vite + JSX)                |        JSON           |   (Uvicorn)                 |
+|                               |                       |                             |
+|   - Client Validation         |                       |   - TF-IDF Vectoriser       |
+|   - Voice Input               |                       |   - MNB Classifier          |
+|   - Animated Results          |                       |   - Error Handling          |
++-------------------------------+                       +-----------------------------+
 ```
 
 ---
 
 ## Model Information
 
-### Preprocessing Pipeline
-1. **Text Cleaning** – Removal of special characters via regex
-2. **Lowercase Conversion** – Normalise case
-3. **Tokenisation** – Split into individual words
-4. **Stop-word Removal** – NLTK English stop-words
-5. **Lemmatisation** – `WordNetLemmatizer` (not Porter Stemmer) for superior linguistic accuracy
+For full model documentation including architecture rationale, hyperparameter details,
+evaluation metrics, limitations, and future improvements, see **[MODEL.md](MODEL.md)**.
 
-### Feature Extraction
-- **TF-IDF Vectoriser** (Term Frequency–Inverse Document Frequency)
-- Vocabulary size selected automatically via F1-score analysis across candidates `[500, 1000, 1500, 2000, 2500, 3000, ALL]`
-
-### Classification
-- **Multinomial Naive Bayes** with α = 0.2
-- 80/20 train-test split, `random_state=0`
-
-### Evaluation Metrics
-The training script prints a full evaluation report:
-
-| Metric | Description |
-|---|---|
-| Classification Report | Per-class precision, recall, F1 |
-| Confusion Matrix | TP, TN, FP, FN |
-| Accuracy | Overall correctness |
-| F1-Score (weighted) | Harmonic mean accounting for class imbalance |
-| ROC-AUC | Area under the ROC curve |
+### Quick Summary
+- **Algorithm**: Multinomial Naive Bayes (alpha=0.2)
+- **Features**: TF-IDF Vectoriser with auto-selected vocabulary size
+- **Preprocessing**: Text cleaning, contraction expansion, stop-word removal, lemmatisation
+- **Metrics**: Accuracy ~77-79%, ROC-AUC ~0.84-0.86
 
 ---
 
@@ -86,7 +69,7 @@ cd Restaurant-Reviews-Sentiment-Analysis-Deployment
 pip install -r requirements.txt
 ```
 
-### 2. Train the Model (optional – pre-trained `.pkl` files included)
+### 2. Train the Model (optional -- pre-trained `.pkl` files included)
 
 ```bash
 python "Restaurant Reviews Sentiment Analyser - Deployment.py"
@@ -97,6 +80,20 @@ This will:
 - Train the final model with optimal features
 - Print full evaluation metrics
 - Save `cv-transform.pkl` and `restaurant-sentiment-mnb-model.pkl`
+
+### 2b. Validate the Dataset
+
+```bash
+python data_validation.py
+```
+
+### 2c. Hyperparameter Tuning (optional)
+
+```bash
+python hyperparameter_tuning.py
+```
+
+Runs GridSearchCV with cross-validation over alpha and max_features.
 
 ### 3. Build the Frontend
 
@@ -135,7 +132,25 @@ docker build -t restaurant-sentiment .
 docker run -p 5000:5000 -e DEBUG=false restaurant-sentiment
 ```
 
-Works on **any cloud provider** — AWS ECS, Azure Container Instances, GCP Cloud Run, DigitalOcean, etc.
+Works on **any cloud provider** -- AWS ECS, Azure Container Instances, GCP Cloud Run, DigitalOcean, etc.
+
+---
+
+## Testing
+
+```bash
+# Install test dependencies (already in requirements.txt)
+pip install pytest pytest-asyncio pytest-cov httpx
+
+# Run all tests
+pytest
+
+# Run with coverage report
+pytest --cov=. --cov-report=term-missing
+
+# Run a specific test file
+pytest tests/test_api.py -v
+```
 
 ---
 
@@ -143,22 +158,36 @@ Works on **any cloud provider** — AWS ECS, Azure Container Instances, GCP Clou
 
 ```
 ├── main.py                        # FastAPI backend (API + static file serving)
+├── preprocess.py                  # Text preprocessing module
+├── data_validation.py             # Dataset quality checks
+├── hyperparameter_tuning.py       # GridSearchCV tuning script
 ├── Restaurant Reviews Sentiment
 │   Analyser - Deployment.py       # Training & evaluation script
 ├── Restaurant_Reviews.tsv         # Dataset (1 000 reviews)
 ├── restaurant-sentiment-mnb-model.pkl  # Trained classifier
 ├── cv-transform.pkl               # Fitted TF-IDF vectoriser
 ├── requirements.txt               # Python dependencies
+├── environment.yml                # Conda environment definition
 ├── Dockerfile                     # Multi-stage Docker build
 ├── Procfile                       # Heroku / PaaS entrypoint
+├── render.yaml                    # Render.com deployment config
+├── MODEL.md                       # Model architecture documentation
+├── CONTRIBUTING.md                # Contribution guidelines
+├── tests/                         # Test suite (pytest)
+│   ├── conftest.py                # Shared fixtures
+│   ├── test_preprocess.py         # Preprocessing tests
+│   ├── test_api.py                # API endpoint tests
+│   └── test_data_validation.py    # Data validation tests
+├── models/                        # Versioned model artefacts
+│   └── README.md                  # Versioning instructions
 ├── client/                        # React frontend (Vite)
-│   ├── index.html                 # HTML shell with OG tags & favicon
+│   ├── index.html
 │   ├── package.json
 │   ├── vite.config.js
 │   └── src/
 │       ├── main.jsx
-│       ├── App.jsx                # Main app component
-│       ├── index.css              # Design system
+│       ├── App.jsx
+│       ├── index.css
 │       └── components/
 │           ├── Navbar.jsx
 │           └── Footer.jsx
@@ -169,17 +198,36 @@ Works on **any cloud provider** — AWS ECS, Azure Container Instances, GCP Clou
 
 ## Security Notes
 
-- **No `debug=True` in production** – Debug mode is toggled via the `DEBUG` env var (defaults to `false`)
-- **CORS** – Only allows configured origins in production; wildcard only in debug mode
-- **Input Validation** – Server-side via Pydantic validators + client-side JS validation
-- **Docker** – Runs as non-root `appuser`
-- **Dependencies** – Pinned to latest stable versions
+- **No `debug=True` in production** -- Debug mode is toggled via the `DEBUG` env var (defaults to `false`)
+- **CORS** -- Only allows configured origins in production; wildcard only in debug mode
+- **Input Validation** -- Server-side via Pydantic validators + client-side JS validation
+- **Docker** -- Runs as non-root `appuser`
+- **Dependencies** -- Pinned to latest stable versions
+
+---
+
+## Contributing
+
+See **[CONTRIBUTING.md](CONTRIBUTING.md)** for setup instructions, coding standards,
+testing guidelines, and PR process.
+
+---
+
+## Reproducibility
+
+| Method | Command |
+|---|---|
+| **pip** | `pip install -r requirements.txt` |
+| **conda** | `conda env create -f environment.yml` |
+| **Docker** | `docker build -t restaurant-sentiment .` |
+
+Model versioning is done via the `models/` directory. See `models/README.md` for conventions.
 
 ---
 
 ## Licence
 
-MIT © Ishwarpatra
+MIT (c) Ishwarpatra
 
 ---
 
