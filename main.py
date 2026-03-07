@@ -2,11 +2,12 @@ import os
 import pickle
 import logging
 
-from fastapi import FastAPI, Request, Form
+from fastapi import FastAPI, HTTPException, Request, Form
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import HTMLResponse, FileResponse
+from fastapi.responses import HTMLResponse, FileResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.exceptions import RequestValidationError
 from pydantic import BaseModel, field_validator
 
 # ---------------------------------------------------------------------------
@@ -80,6 +81,9 @@ except FileNotFoundError as exc:
 # ---------------------------------------------------------------------------
 # Request / response models
 # ---------------------------------------------------------------------------
+MAX_REVIEW_LENGTH = 5000
+
+
 class ReviewRequest(BaseModel):
     message: str
 
@@ -88,7 +92,12 @@ class ReviewRequest(BaseModel):
     def message_must_not_be_empty(cls, v: str) -> str:
         if not v or not v.strip():
             raise ValueError("Review text must not be empty.")
-        return v.strip()
+        stripped = v.strip()
+        if len(stripped) > MAX_REVIEW_LENGTH:
+            raise ValueError(
+                f"Review text must not exceed {MAX_REVIEW_LENGTH} characters."
+            )
+        return stripped
 
 
 # ---------------------------------------------------------------------------
@@ -112,6 +121,47 @@ def get_witty_response(prediction: int, text: str) -> str:
         if "atmosphere" in lower or "place" in lower:
             return "Vibes: Immaculate."
         return "You just made our day!"
+
+
+# ---------------------------------------------------------------------------
+# Error handlers
+# ---------------------------------------------------------------------------
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    """Return a friendly JSON error for Pydantic validation failures."""
+    errors = []
+    for error in exc.errors():
+        field = " -> ".join(str(loc) for loc in error.get("loc", []))
+        errors.append({"field": field, "message": error.get("msg", "")})
+    return JSONResponse(
+        status_code=422,
+        content={"error": "Validation failed", "details": errors},
+    )
+
+
+@app.exception_handler(400)
+async def bad_request_handler(request: Request, exc):
+    return JSONResponse(
+        status_code=400,
+        content={"error": "Bad request", "detail": str(exc.detail) if hasattr(exc, 'detail') else "Invalid request."},
+    )
+
+
+@app.exception_handler(404)
+async def not_found_handler(request: Request, exc):
+    return JSONResponse(
+        status_code=404,
+        content={"error": "Not found", "detail": "The requested resource does not exist."},
+    )
+
+
+@app.exception_handler(500)
+async def internal_error_handler(request: Request, exc):
+    logger.exception("Internal server error")
+    return JSONResponse(
+        status_code=500,
+        content={"error": "Internal server error", "detail": "An unexpected error occurred."},
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -165,6 +215,15 @@ async def predict_api(request: ReviewRequest):
     """JSON API endpoint consumed by the React frontend."""
     try:
         message = request.message
+
+        # Reject non-ASCII-heavy input (likely non-English)
+        ascii_ratio = sum(1 for c in message if ord(c) < 128) / max(len(message), 1)
+        if ascii_ratio < 0.5:
+            raise HTTPException(
+                status_code=400,
+                detail="Input appears to be non-English. This model only supports English reviews.",
+            )
+
         vect = cv.transform([message]).toarray()
         prediction = int(classifier.predict(vect)[0])
         proba = classifier.predict_proba(vect)[0]
@@ -176,9 +235,14 @@ async def predict_api(request: ReviewRequest):
             "confidence": confidence,
             "custom_msg": custom_msg,
         }
+    except HTTPException:
+        raise  # Re-raise HTTP exceptions as-is
     except Exception as exc:
         logger.exception("Error in /api/predict")
-        return {"error": str(exc), "prediction": None, "confidence": 0}
+        raise HTTPException(
+            status_code=500,
+            detail="An error occurred during prediction. Please try again.",
+        ) from exc
 
 
 # ---------------------------------------------------------------------------
