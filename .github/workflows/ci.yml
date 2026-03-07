@@ -1,0 +1,81 @@
+# =============================================================================
+# CI/CD Pipeline -- Restaurant Review Sentiment Analyser
+# =============================================================================
+# Runs on every push and PR to main. Gates merges on:
+#   1. Python backend tests (pytest)
+#   2. React frontend build (vite)
+#
+# Env: Ubuntu-latest with Python 3.11 and Node 18.
+# =============================================================================
+
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  # ---- Backend Tests --------------------------------------------------------
+  backend:
+    name: Backend Tests (Python 3.11)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Download NLTK data
+        run: python -c "import nltk; nltk.download('stopwords', quiet=True); nltk.download('wordnet', quiet=True)"
+
+      - name: Run backend tests
+        run: pytest --tb=short -v
+
+  # ---- Frontend Build -------------------------------------------------------
+  frontend:
+    name: Frontend Build (Node 18)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "18"
+          cache: npm
+          cache-dependency-path: client/package-lock.json
+
+      - name: Install dependencies
+        working-directory: client
+        run: npm ci
+
+      - name: Build React app
+        working-directory: client
+        run: npm run build
+
+  # ---- Combined gate --------------------------------------------------------
+  ci-gate:
+    name: CI Gate
+    needs: [backend, frontend]
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Check results
+        run: |
+          if [[ "${{ needs.backend.result }}" != "success" || "${{ needs.frontend.result }}" != "success" ]]; then
+            echo "CI failed: backend=${{ needs.backend.result }}, frontend=${{ needs.frontend.result }}"
+            exit 1
+          fi
+          echo "All checks passed."
