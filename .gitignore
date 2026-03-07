@@ -38,3 +38,12 @@ npm-debug.log*
 
 # Misc
 *.pkl.bak
+
+# Model snapshots (keep README)
+models/*/
+
+# Testing
+.pytest_cache/
+htmlcov/
+.coverage
+coverage.xml
