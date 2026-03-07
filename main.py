@@ -9,6 +9,9 @@ from fastapi.responses import HTMLResponse, FileResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.exceptions import RequestValidationError
 from pydantic import BaseModel, field_validator
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 
 # ---------------------------------------------------------------------------
 # Configuration via environment variables
@@ -19,13 +22,20 @@ ALLOWED_ORIGINS = os.environ.get(
 ).split(",")
 
 # ---------------------------------------------------------------------------
-# Logging
+# Logging -- structured format for production observability
 # ---------------------------------------------------------------------------
 logging.basicConfig(
     level=logging.DEBUG if DEBUG_MODE else logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(message)s",
+    format="%(asctime)s [%(levelname)s] %(name)s | %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
 )
 logger = logging.getLogger(__name__)
+
+# ---------------------------------------------------------------------------
+# Rate limiter
+# ---------------------------------------------------------------------------
+RATE_LIMIT = os.environ.get("RATE_LIMIT", "10/minute")
+limiter = Limiter(key_func=get_remote_address, default_limits=[RATE_LIMIT])
 
 # ---------------------------------------------------------------------------
 # App initialisation
@@ -37,7 +47,10 @@ app = FastAPI(
     debug=DEBUG_MODE,
 )
 
-# CORS – use explicit origins; only fall back to wildcard when DEBUG is on
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+# CORS -- use explicit origins; only fall back to wildcard when DEBUG is on
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"] if DEBUG_MODE else ALLOWED_ORIGINS,
@@ -211,14 +224,18 @@ async def predict(request: Request, message: str = Form(...)):
 
 
 @app.post("/api/predict")
-async def predict_api(request: ReviewRequest):
+@limiter.limit(RATE_LIMIT)
+async def predict_api(request: Request, body: ReviewRequest):
     """JSON API endpoint consumed by the React frontend."""
     try:
-        message = request.message
+        message = body.message
+        logger.info("Prediction request | length=%d | preview='%s'",
+                    len(message), message[:80])
 
         # Reject non-ASCII-heavy input (likely non-English)
         ascii_ratio = sum(1 for c in message if ord(c) < 128) / max(len(message), 1)
         if ascii_ratio < 0.5:
+            logger.warning("Non-English input rejected | ascii_ratio=%.2f", ascii_ratio)
             raise HTTPException(
                 status_code=400,
                 detail="Input appears to be non-English. This model only supports English reviews.",
@@ -229,6 +246,9 @@ async def predict_api(request: ReviewRequest):
         proba = classifier.predict_proba(vect)[0]
         confidence = round(max(proba) * 100, 2)
         custom_msg = get_witty_response(prediction, message)
+
+        logger.info("Prediction result | sentiment=%s | confidence=%.2f%%",
+                    "positive" if prediction == 1 else "negative", confidence)
 
         return {
             "prediction": prediction,
@@ -251,6 +271,22 @@ async def predict_api(request: ReviewRequest):
 @app.get("/health")
 async def health():
     return {"status": "healthy", "debug": DEBUG_MODE}
+
+
+# ---------------------------------------------------------------------------
+# SPA catch-all -- serves index.html for client-side routes
+# (must be registered LAST so it does not shadow API routes)
+# ---------------------------------------------------------------------------
+@app.get("/{full_path:path}")
+async def spa_catch_all(full_path: str):
+    """Serve the React SPA for any route not matched above."""
+    index_path = os.path.join(SCRIPT_DIR, "client", "dist", "index.html")
+    if os.path.exists(index_path):
+        return FileResponse(index_path)
+    return JSONResponse(
+        status_code=404,
+        content={"detail": "Frontend not built. Run `npm run build` in /client first."},
+    )
 
 
 # ---------------------------------------------------------------------------
