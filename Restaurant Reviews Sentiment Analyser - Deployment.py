@@ -1,18 +1,18 @@
 """
-Restaurant Reviews Sentiment Analyser – Training & Evaluation Script
+Restaurant Reviews Sentiment Analyser -- Training & Evaluation Script
 ====================================================================
 Trains a Multinomial Naive Bayes classifier on restaurant reviews.
 
 Improvements over the original:
-  • Lemmatisation (WordNetLemmatizer) instead of stemming
-  • TF-IDF vectorisation instead of raw Bag-of-Words
-  • Automated vocabulary size analysis to choose optimal max_features
-  • Full evaluation metrics (Classification Report, Confusion Matrix,
+  - Lemmatisation (WordNetLemmatizer) instead of stemming
+  - TF-IDF vectorisation instead of raw Bag-of-Words
+  - Automated vocabulary size analysis to choose optimal max_features
+  - Full evaluation metrics (Classification Report, Confusion Matrix,
     Accuracy, F1-Score, ROC-AUC)
-  • Cross-platform path handling via os.path.join
+  - Cross-platform path handling via os.path.join
 """
 
-# ── Imports ──────────────────────────────────────────────────────────────────
+# -- Imports -------------------------------------------------------------------
 import os
 import re
 import pickle
@@ -33,11 +33,11 @@ from sklearn.metrics import (
     roc_auc_score,
 )
 
-# ── NLTK data ────────────────────────────────────────────────────────────────
+# -- NLTK data -----------------------------------------------------------------
 nltk.download("stopwords", quiet=True)
 nltk.download("wordnet", quiet=True)
 
-# ── Paths ────────────────────────────────────────────────────────────────────
+# -- Paths ---------------------------------------------------------------------
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 DATASET_PATH = os.path.join(SCRIPT_DIR, "Restaurant_Reviews.tsv")
 MODEL_PATH = os.path.join(SCRIPT_DIR, "restaurant-sentiment-mnb-model.pkl")
@@ -45,7 +45,7 @@ VECTORIZER_PATH = os.path.join(SCRIPT_DIR, "cv-transform.pkl")
 
 # ── 1. Load dataset ─────────────────────────────────────────────────────────
 print("=" * 70)
-print("RESTAURANT REVIEWS SENTIMENT ANALYSER – TRAINING PIPELINE")
+print("RESTAURANT REVIEWS SENTIMENT ANALYSER -- TRAINING PIPELINE")
 print("=" * 70)
 
 df = pd.read_csv(DATASET_PATH, delimiter="\t", quoting=3)
@@ -66,7 +66,7 @@ for review_text in df["Review"]:
 
 print(f"[OK] Preprocessing complete ({len(corpus)} reviews cleaned)")
 
-# ── 3. Vocabulary size analysis ──────────────────────────────────────────────
+# -- 3. Vocabulary size analysis -----------------------------------------------
 print("\n" + "-" * 70)
 print("VOCABULARY SIZE ANALYSIS")
 print("-" * 70)
@@ -94,7 +94,7 @@ for n in candidates:
 label = str(best_features) if best_features else "ALL (no limit)"
 print(f"\n>> Optimal vocabulary size: {label}  (F1 = {best_score:.4f})")
 
-# ── 4. Final model training with optimal features ───────────────────────────
+# -- 4. Final model training with optimal features ----------------------------
 print("\n" + "-" * 70)
 print("TRAINING FINAL MODEL")
 print("-" * 70)
@@ -114,7 +114,7 @@ classifier = MultinomialNB(alpha=0.2)
 classifier.fit(X_train, y_train)
 print("[OK] Model training complete")
 
-# ── 5. Evaluation metrics ───────────────────────────────────────────────────
+# -- 5. Evaluation metrics -----------------------------------------------------
 print("\n" + "-" * 70)
 print("MODEL EVALUATION")
 print("-" * 70)
@@ -138,7 +138,7 @@ print(f"\n   Accuracy : {acc:.4f}")
 print(f"   F1-Score : {f1:.4f}")
 print(f"   ROC-AUC  : {roc:.4f}")
 
-# ── 6. Save artefacts ───────────────────────────────────────────────────────
+# -- 6. Save artefacts --------------------------------------------------------
 print("\n" + "-" * 70)
 print("SAVING ARTEFACTS")
 print("-" * 70)
