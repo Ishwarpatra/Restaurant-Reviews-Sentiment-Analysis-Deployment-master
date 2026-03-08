@@ -16,7 +16,7 @@ interface AnalysisResult {
     confidence: number;
 }
 
-const API_URL = import.meta.env.VITE_API_URL || '';
+const API_URL = (import.meta as any).env.VITE_API_URL || '';
 /* ---- SVG Result Icons ---- */
 const SmileIcon = () => (
     <svg width="40" height="40" viewBox="0 0 48 48" fill="none">
@@ -79,7 +79,7 @@ const Analyzer = () => {
             // Stop the media tracks immediately so we don't hold the mic unnecessarily.
             // SpeechRecognition will request its own microphone access.
             stream.getTracks().forEach(track => track.stop());
-        } catch (err) {
+        } catch (err: any) {
             console.error('Microphone permission denied:', err);
             if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
                 setError('Microphone access denied. Please allow microphone permission in your browser settings.');
@@ -97,11 +97,11 @@ const Analyzer = () => {
         recognition.lang = 'en-US';
         recognition.onstart = () => setIsRecording(true);
         recognition.onend = () => setIsRecording(false);
-        recognition.onerror = (e) => {
+        recognition.onerror = (e: any) => {
             console.error('Speech recognition error', e);
             setIsRecording(false);
         };
-        recognition.onresult = (event) => {
+        recognition.onresult = (event: any) => {
             const transcript = event.results[0][0].transcript;
             setMessage((prev) => (prev ? prev + ' ' : '') + transcript);
             setValidationError('');
@@ -171,7 +171,7 @@ const Analyzer = () => {
                                         <textarea
                                             id="review-input"
                                             className={`textarea-custom ${validationError ? 'is-invalid' : ''}`}
-                                            rows="5"
+                                            rows={5}
                                             placeholder="e.g. The food was absolutely delicious and the service was outstanding..."
                                             value={message}
                                             onChange={(e) => {

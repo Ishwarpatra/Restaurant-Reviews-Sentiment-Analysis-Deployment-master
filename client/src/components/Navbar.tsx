@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { Menu, X } from 'lucide-react';
 
@@ -6,12 +6,12 @@ const Navbar = () => {
   const location = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
 
-  const isActive = (path) => location.pathname === path;
+  const isActive = (path: string) => location.pathname === path;
 
   const navLinks = [
     { to: '/', label: 'Home' },
     { to: '/analyze', label: 'Analyser' },
-    { to: '/about', label: 'Tech Stack' },
+    { to: '/about', label: 'Model Architecture' },
   ];
 
   return (

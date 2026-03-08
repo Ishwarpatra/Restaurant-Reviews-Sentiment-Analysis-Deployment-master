@@ -879,6 +879,7 @@ body {
 .glass-card {
 	width: 100%;
 	max-width: 580px;
+	margin: 0 auto;
 	position: relative;
 	animation: card-enter 0.7s var(--ease-out) both;
 }

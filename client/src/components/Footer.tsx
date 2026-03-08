@@ -1,14 +1,6 @@
-import React from 'react';
-import { Link } from 'react-router-dom';
-
 const Footer = () => {
   return (
     <footer className="app-footer">
-      <div className="footer-nav">
-        <Link to="/" className="footer-nav-link">Home</Link>
-        <Link to="/analyze" className="footer-nav-link">Analyser</Link>
-        <Link to="/about" className="footer-nav-link">Tech Stack</Link>
-      </div>
       <div className="footer-links">
         <a href="https://github.com/Ishwarpatra" target="_blank" rel="noopener noreferrer" aria-label="GitHub" className="footer-link">
           <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18">

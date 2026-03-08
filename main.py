@@ -1,10 +1,9 @@
 import os
 import logging
 
-from fastapi import FastAPI, HTTPException, Request, Form
-from fastapi.templating import Jinja2Templates
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import HTMLResponse, FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.exceptions import RequestValidationError
 from pydantic import BaseModel, field_validator
@@ -67,12 +66,6 @@ client_assets_dir = os.path.join(SCRIPT_DIR, "client", "dist", "assets")
 if os.path.exists(client_assets_dir):
     app.mount("/assets", StaticFiles(directory=client_assets_dir), name="assets")
 
-templates_dir = os.path.join(SCRIPT_DIR, "templates")
-if os.path.isdir(templates_dir):
-    templates = Jinja2Templates(directory=templates_dir)
-else:
-    templates = None
-    logger.warning("No 'templates' directory found – Jinja2 templates disabled.")
 
 # ---------------------------------------------------------------------------
 # Load Modern Transformer Model
@@ -195,39 +188,6 @@ async def read_index():
         return FileResponse(index_path)
     return {"detail": "Frontend not built. Run `npm run build` in /client first."}
 
-
-@app.post("/predict", response_class=HTMLResponse)
-async def predict(request: Request, message: str = Form(...)):
-    """Legacy form-based predict route (Jinja2 template)."""
-    if templates is None:
-        return HTMLResponse("<h1>Templates directory missing</h1>", status_code=500)
-    try:
-        if not message.strip():
-            return templates.TemplateResponse(
-                "result.html",
-                {"request": request, "prediction": None, "error": "Please enter a valid review."},
-            )
-
-        result = sentiment_model(message)[0]
-        prediction = 1 if result["label"] == "POSITIVE" else 0
-        confidence = round(result["score"] * 100, 2)
-        custom_msg = get_witty_response(prediction, message)
-
-        return templates.TemplateResponse(
-            "result.html",
-            {
-                "request": request,
-                "prediction": prediction,
-                "confidence": confidence,
-                "custom_msg": custom_msg,
-            },
-        )
-    except Exception as exc:
-        logger.exception("Error during prediction")
-        return templates.TemplateResponse(
-            "result.html",
-            {"request": request, "prediction": None, "error": f"An error occurred: {exc}"},
-        )
 
 
 @app.post("/api/predict")
