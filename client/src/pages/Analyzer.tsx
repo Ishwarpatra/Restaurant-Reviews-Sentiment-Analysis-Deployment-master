@@ -1,9 +1,22 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import axios from 'axios';
 import { Mic, Zap, ArrowLeft, BarChart3 } from 'lucide-react';
 
-const API_URL = import.meta.env.VITE_API_URL || '';
+declare global {
+    interface Window {
+        SpeechRecognition: any;
+        webkitSpeechRecognition: any;
+    }
+}
 
+interface AnalysisResult {
+    error?: string;
+    prediction: number;
+    custom_msg: string;
+    confidence: number;
+}
+
+const API_URL = import.meta.env.VITE_API_URL || '';
 /* ---- SVG Result Icons ---- */
 const SmileIcon = () => (
     <svg width="40" height="40" viewBox="0 0 48 48" fill="none">
@@ -24,14 +37,15 @@ const FrownIcon = () => (
 );
 
 const Analyzer = () => {
-    const [message, setMessage] = useState('');
-    const [result, setResult] = useState(null);
-    const [isRecording, setIsRecording] = useState(false);
-    const [isLoading, setIsLoading] = useState(false);
-    const [error, setError] = useState('');
-    const [validationError, setValidationError] = useState('');
+    const [message, setMessage] = useState<string>('');
+    const [result, setResult] = useState<AnalysisResult | null>(null);
+    const [isRecording, setIsRecording] = useState<boolean>(false);
+    const [isLoading, setIsLoading] = useState<boolean>(false);
+    const [error, setError] = useState<string>('');
+    const [validationError, setValidationError] = useState<string>('');
+    const recognitionRef = useRef<any>(null);
 
-    const validate = () => {
+    const validate = (): boolean => {
         if (!message.trim()) {
             setValidationError('Please enter a restaurant review before submitting.');
             return false;
@@ -44,28 +58,64 @@ const Analyzer = () => {
         return true;
     };
 
-    const handleVoiceInput = () => {
+    const handleVoiceInput = async () => {
         const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
         if (!SpeechRecognition) {
             setError('Voice input is not supported in this browser.');
             return;
         }
+
+        if (isRecording) {
+            if (recognitionRef.current) {
+                recognitionRef.current.stop();
+            }
+            setIsRecording(false);
+            return;
+        }
+
+        // Request microphone permissions explicitly
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            // Stop the media tracks immediately so we don't hold the mic unnecessarily.
+            // SpeechRecognition will request its own microphone access.
+            stream.getTracks().forEach(track => track.stop());
+        } catch (err) {
+            console.error('Microphone permission denied:', err);
+            if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+                setError('Microphone access denied. Please allow microphone permission in your browser settings.');
+            } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
+                setError('No microphone found. Please connect a microphone to use voice input.');
+            } else {
+                setError('Error accessing the microphone: ' + err.message);
+            }
+            return;
+        }
+
         const recognition = new SpeechRecognition();
+        recognitionRef.current = recognition;
         recognition.continuous = false;
         recognition.lang = 'en-US';
         recognition.onstart = () => setIsRecording(true);
         recognition.onend = () => setIsRecording(false);
-        recognition.onerror = () => setIsRecording(false);
+        recognition.onerror = (e) => {
+            console.error('Speech recognition error', e);
+            setIsRecording(false);
+        };
         recognition.onresult = (event) => {
             const transcript = event.results[0][0].transcript;
             setMessage((prev) => (prev ? prev + ' ' : '') + transcript);
             setValidationError('');
         };
-        if (isRecording) recognition.stop();
-        else recognition.start();
+
+        try {
+            recognition.start();
+        } catch (e) {
+            console.error(e);
+            setIsRecording(false);
+        }
     };
 
-    const handleSubmit = async (e) => {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!validate()) return;
         setIsLoading(true);

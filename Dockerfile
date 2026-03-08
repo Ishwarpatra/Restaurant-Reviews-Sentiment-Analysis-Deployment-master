@@ -18,6 +18,9 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
+# Pre-download NLTK data during build to eliminate Cold Start runtime penalties
+RUN python -m nltk.downloader wordnet stopwords
+
 # Copy backend code & model artefacts
 COPY main.py .
 COPY Restaurant_Reviews.tsv .

@@ -272,6 +272,10 @@ async def predict_api(request: Request, body: ReviewRequest):
 async def health():
     return {"status": "healthy", "debug": DEBUG_MODE}
 
+@app.get("/api/health")
+async def health_check():
+    return {"status": "awake", "chef": "ready"}
+
 
 # ---------------------------------------------------------------------------
 # SPA catch-all -- serves index.html for client-side routes
