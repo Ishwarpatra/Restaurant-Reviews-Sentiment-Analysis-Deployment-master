@@ -14,7 +14,7 @@ import os
 # Ensure project root is importable
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from preprocess import clean_text, expand_contractions, preprocess_corpus
+from scripts.preprocess import clean_text, expand_contractions, preprocess_corpus
 
 
 # ── clean_text tests ─────────────────────────────────────────────────────

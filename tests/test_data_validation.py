@@ -18,7 +18,7 @@ import pandas as pd
 # Ensure project root is importable
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from data_validation import (
+from scripts.data_validation import (
     check_file_exists,
     check_required_columns,
     check_null_values,
