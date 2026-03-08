@@ -1,3 +1,5 @@
+--extra-index-url https://download.pytorch.org/whl/cpu
+
 # Web framework
 fastapi>=0.115.0
 uvicorn[standard]>=0.32.0
@@ -8,15 +10,9 @@ slowapi>=0.1.9
 jinja2>=3.1.5
 itsdangerous>=2.2.0
 
-# Data science
-numpy>=1.26.0
-scipy>=1.14.0
-scikit-learn>=1.6.0
-pandas>=2.2.0
-matplotlib>=3.9.0
-
-# NLP
-nltk>=3.9.0
+# NLP & ML (Modernized)
+torch
+transformers>=4.40.0
 
 # Testing
 pytest>=8.0.0

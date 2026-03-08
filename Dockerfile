@@ -18,8 +18,8 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Pre-download NLTK data during build to eliminate Cold Start runtime penalties
-RUN python -m nltk.downloader wordnet stopwords
+# Pre-download the HuggingFace Transformer model during build to eliminate Cold Start penalties
+RUN python -c "import torch; from transformers import pipeline; pipeline('sentiment-analysis', model='distilbert/distilbert-base-uncased-finetuned-sst-2-english', device=-1)"
 
 # Copy backend code & model artefacts
 COPY main.py .

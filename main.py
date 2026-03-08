@@ -1,5 +1,4 @@
 import os
-import pickle
 import logging
 
 from fastapi import FastAPI, HTTPException, Request, Form
@@ -76,19 +75,28 @@ else:
     logger.warning("No 'templates' directory found – Jinja2 templates disabled.")
 
 # ---------------------------------------------------------------------------
-# Load model & vectoriser
+# Load Modern Transformer Model
 # ---------------------------------------------------------------------------
-model_path = os.path.join(SCRIPT_DIR, "restaurant-sentiment-mnb-model.pkl")
-vectorizer_path = os.path.join(SCRIPT_DIR, "cv-transform.pkl")
-
 try:
-    classifier = pickle.load(open(model_path, "rb"))
-    cv = pickle.load(open(vectorizer_path, "rb"))
-    logger.info("Model and vectoriser loaded successfully.")
-except FileNotFoundError as exc:
-    logger.error("Model files not found: %s", exc)
+    from transformers import pipeline
+    logger.info("Loading DistilBERT sentiment analysis pipeline... this may take a moment on boot.")
+    
+    # device=-1 forces CPU inference to prevent OOM errors on free-tier containers
+    sentiment_model = pipeline(
+        "sentiment-analysis", 
+        model="distilbert/distilbert-base-uncased-finetuned-sst-2-english",
+        device=-1 
+    )
+    logger.info("DistilBERT model loaded successfully into RAM.")
+except ImportError as exc:
+    logger.error("Transformers library not installed: %s", exc)
     raise SystemExit(
-        "FATAL: Model pickle files are missing. Run the training script first."
+        "FATAL: Missing dependencies. Run `pip install -r requirements.txt`"
+    ) from exc
+except Exception as exc:
+    logger.error("Failed to load model: %s", exc)
+    raise SystemExit(
+        "FATAL: Could not initialise the transformer pipeline."
     ) from exc
 
 # ---------------------------------------------------------------------------
@@ -200,10 +208,9 @@ async def predict(request: Request, message: str = Form(...)):
                 {"request": request, "prediction": None, "error": "Please enter a valid review."},
             )
 
-        vect = cv.transform([message]).toarray()
-        prediction = classifier.predict(vect)[0]
-        proba = classifier.predict_proba(vect)[0]
-        confidence = round(max(proba) * 100, 2)
+        result = sentiment_model(message)[0]
+        prediction = 1 if result["label"] == "POSITIVE" else 0
+        confidence = round(result["score"] * 100, 2)
         custom_msg = get_witty_response(prediction, message)
 
         return templates.TemplateResponse(
@@ -241,10 +248,10 @@ async def predict_api(request: Request, body: ReviewRequest):
                 detail="Input appears to be non-English. This model only supports English reviews.",
             )
 
-        vect = cv.transform([message]).toarray()
-        prediction = int(classifier.predict(vect)[0])
-        proba = classifier.predict_proba(vect)[0]
-        confidence = round(max(proba) * 100, 2)
+        # Modern Inference
+        result = sentiment_model(message[:512])[0]  # truncate to DistilBERT max context
+        prediction = 1 if result["label"] == "POSITIVE" else 0
+        confidence = round(result["score"] * 100, 2)
         custom_msg = get_witty_response(prediction, message)
 
         logger.info("Prediction result | sentiment=%s | confidence=%.2f%%",
