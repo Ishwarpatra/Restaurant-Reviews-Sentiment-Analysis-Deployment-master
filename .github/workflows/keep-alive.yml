@@ -1,0 +1,17 @@
+name: Keep Alive Ping
+
+on:
+  schedule:
+    # Runs every 10 minutes (cron format)
+    # Render's free tier sleeps after 15 minutes of inactivity.
+    - cron: '*/10 * * * *'
+  # Allows us to manually trigger the workflow if needed
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Backend Health Check
+        # Uses curl to hit the endpoint we just created
+        run: curl -sSf https://restaurant-reviews-sentiment.onrender.com/api/health || echo "Failed to ping"
